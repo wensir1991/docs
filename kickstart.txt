@@ -1,0 +1,117 @@
+CentOS7实战Kickstart批量系统部署
+1.Kickstart使用背景介绍
+随着公司业务不断增加，经常需要采购新服务器，并要求安装Linux系统，并且要求Linux版本要一致，方便以后的维护和管理，每次人工安装linux系统会浪费掉更多时间，如果我们有办法能节省一次一次的时间岂不更好呢？
+大中型互联网公司一次采购服务器上百台,如果采用人工手动一台一台的安装,一个人得搞坏N张光盘,得多少个加班加点才能完成这项”艰巨”的任务呢,我们可以看到全人工来完成这样的工作太浪费人力了,有没有自动化安装平台呢,通过一台已存在的系统然后克隆或者复制到新的服务器呢。Kickstart可以毫不费力的完成这项工作。
+PXE(preboot execute environment，预启动执行环境)是由Intel公司开发的最新技术，工作于Client/Server的网络模式，支持工作站通过网络从远端服务器下载映像，并由此支持通过网络启动操作系统，在启动过程中，终端要求服务器分配IP地址，再用TFTP（trivial file transfer protocol）协议下载一个启动软件包到本机内存中执行。
+要使用kickstart安装平台，包括的完整架构为：Kickstart+DHCP+NFS(HTTP)+TFTP+PXE，从架构可以看出，大致需要安装的服务，例如dhcp、tftp、httpd、kickstart/pxe等。
+2.Kickstart企业实战配置
+基于YUM安装DHCP、TFTP、HTTPD服务，指令如下：
+#systemctl stop firewalld
+#systemctl disable firewalld
+#yum  install  httpd httpd-devel  tftp-server  xinetd dhcp* -y
+#cat>/etc/xinetd.d/tftp<<EOF
+	service tftp
+	{
+	disable = no
+	socket_type = dgram
+	protocol = udp
+	wait = yes
+	user = root
+	server = /usr/sbin/in.tftpd
+	server_args = -u nobody -s /tftpboot
+	per_source = 11
+	cps = 100 2
+	flags = IPv4
+	}
+EOF
+
+#mount /dev/cdrom /mnt/
+#yum install syslinux syslinux-devel -y
+#ln -s  /var/lib/tftpboot
+#\cp /mnt/isolinux/isolinux.cfg /var/lib/tftpboot/pxelinux.cfg/default
+#mkdir /var/lib/tftpboot/pxelinux.cfg/
+#cp /mnt/isolinux/isolinux.cfg /var/lib/tftpboot/pxelinux.cfg/default
+#\cp /usr/share/syslinux/vesamenu.c32 /var/lib/tftpboot/
+#\cp /mnt/images/pxeboot/vmlinuz /var/lib/tftpboot/
+#\cp /mnt/images/pxeboot/initrd.img /var/lib/tftpboot/
+#\cp /usr/share/syslinux/pxelinux.0 /var/lib/tftpboot/
+#\chmod  644  /var/lib/tftpboot/pxelinux.cfg/default
+#\chmod 644 /var/lib/tftpboot/pxelinux.cfg/default
+
+cat>/tftpboot/pxelinux.cfg/default<<EOF
+	default vesamenu.c32
+	timeout 10
+	display boot.msg
+	menu clear
+	menu background splash.png
+	menu title CentOS Linux 7
+	label linux
+	  menu label ^Install CentOS Linux 7
+	  menu default
+	  kernel vmlinuz
+	  append initrd=initrd.img inst.repo=http://192.168.70.128/centos7 quiet ks=http://192.168.70.128/ks.cfg
+	label check
+	  menu label Test this ^media & install CentOS Linux 7
+	  kernel vmlinuz
+	  append initrd=initrd.img inst.stage2=hd:LABEL=CentOS\x207\x20x86_64 rd.live.check quiet
+EOF
+
+
+配置文件详解：
+192.168.70.128是kickstart服务器，/centos7是HTTPD共享linux镜像的目录，即linux存放安装文件的路径：
+ks.cfg是kickstart主配置文件;
+设置timeout 10 /*超时时间为10S */;
+ksdevice=ens33代表当我们有多块网卡的时候，要实现自动化需要设置从ens33安装。
+TFTP配置完毕，由于是TFTP是非独立服务，需要依赖xinetd服务来启动，启动命令为：
+
+
+#chkconfig tftp --level 35 on
+#systemctl restart xinetd.service
+#mkdir -p /var/www/html/centos7/
+#mount /dev/cdrom /var/www/html/centos7/
+
+#cat>/var/www/html/ks.cfg<<EOF
+	install
+	text
+	keyboard 'us'
+	rootpw 123456
+	timezone Asia/Shanghai 
+	url --url=http://192.168.70.128/centos7
+	reboot
+	lang zh_CN 
+	firewall --disabled 
+	network  --bootproto=dhcp --device=ens33
+	auth  --useshadow  --passalgo=sha512
+	firstboot --disable
+	selinux   disabled 
+	bootloader --location=mbr
+	clearpart --all --initlabel
+	part /boot --fstype="ext4" --size=300
+	part / --fstype="ext4" --grow
+	part swap --fstype="swap" --size=512
+	%packages
+	@base
+	@core
+	%end
+EOF
+
+#cat>/etc/dhcp/dhcpd.conf<<EOF
+		ddns-update-style interim;
+		ignore client-updates;
+		next-server 192.168.70.128;
+		filename "pxelinux.0";
+		allow booting;
+		allow bootp;
+		subnet 192.168.70.0 netmask 255.255.255.0 {
+		option routers          192.168.70.2;
+		option subnet-mask      255.255.255.0;
+		range dynamic-bootp 192.168.70.180 192.168.70.200;
+		host ns {
+		hardware ethernet  00:1a:a0:2b:38:81;
+		fixed-address 192.168.70.101;}
+		}
+EOF
+
+systemctl restart httpd
+systemctl restart dhcpd
+systemctl restart xinetd
