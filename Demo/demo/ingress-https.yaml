@@ -6,7 +6,7 @@ spec:
   tls:
   - hosts:
     - bbs.aju.cn
-    secretName: secret-tls
+    secretName: bbs.aju.cn
   rules:
   - host: bbs.aju.cn
     http: 
