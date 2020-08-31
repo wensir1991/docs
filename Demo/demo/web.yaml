@@ -5,7 +5,7 @@ metadata:
     app: web
   name: web
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app: web
@@ -15,5 +15,5 @@ spec:
         app: web
     spec:
       containers:
-      - image: nginx
-        name: nginx
+      - image: lizhenliang/java-demo
+        name: java
