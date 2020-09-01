@@ -18,7 +18,7 @@ spec:
       imagePullSecrets: 
       - name: "docker-regsitry-auth"
       containers:
-      - image: java-demo
+      - image: registry.cn-shenzhen.aliyuncs.com/wenjusir/aju:nginx_tomcat
         name: java
         imagePullPolicy: Always
         ports:

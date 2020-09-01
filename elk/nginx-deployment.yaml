@@ -19,7 +19,7 @@ spec:
       - name: "docker-regsitry-auth" 
       containers:
       - name: nginx 
-        image: lizhenliang/nginx-php 
+        image: registry.cn-shenzhen.aliyuncs.com/wenjusir/aju:nginx_php 
         imagePullPolicy: Always
         ports:
         - containerPort: 80
@@ -46,7 +46,7 @@ spec:
           timeoutSeconds: 20
         volumeMounts:
         - name: nginx-logs 
-          mountPath: /usr/local/nginx/logs
+          mountPath: /usr/local/openresty/nginx/logs
 
       - name: filebeat
         image: elastic/filebeat:7.3.2 
@@ -67,7 +67,7 @@ spec:
           mountPath: /etc/filebeat.yml
           subPath: filebeat.yml
         - name: nginx-logs 
-          mountPath: /usr/local/nginx/logs
+          mountPath: /usr/local/openresty/nginx/logs
 
       volumes:
       - name: nginx-logs
@@ -87,7 +87,7 @@ data:
     filebeat.inputs:
       - type: log
         paths:
-          - /usr/local/nginx/logs/access.log
+          - /usr/local/openresty/nginx/logs/access.log
         # tags: ["access"]
         fields:
           app: www
